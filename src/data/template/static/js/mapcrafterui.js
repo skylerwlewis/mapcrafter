@@ -27,6 +27,9 @@ var MCTileLayer = L.TileLayer.extend({
 	},
 });
 
+// Make the build height a variable
+var topBlock = 320;
+
 /**
  * Creates a tile layer of a map with a specific rotation
  */
@@ -52,14 +55,14 @@ var IsometricRenderView = {
 		var quarterBlockSize = mapConfig.textureSize / 2;
 		// each block has a row/column depending on x/z/y
 		// each row is a half block high, each column a quarter block wide
-		// row = x+z, column = z - x + (256-y)*2
+		// row = x+z, column = z - x + (topBlock-y)*2
 		// so we can get the correct pixel coordinates of the mc coordinates, and then lat/lng:
 		// 1. calculate row/column, multiply with row/column size (now pixel coordinates)
 		// 2. map range [-mapSize/2, mapSize/2] to [0, mapSize/2] (like unproject wants it)
 		// 3. apply little offset that is needed in this view
 		// 4. apply tile offset
 		// 5. pixel coordinates -> leaflet lat/lng with unproject
-		var point = L.point(2 * (x + z), z - x + (256 - y) * 2).multiplyBy(quarterBlockSize)
+		var point = L.point(2 * (x + z), z - x + (topBlock - y) * 2).multiplyBy(quarterBlockSize)
 			.add(L.point(mapSize / 2, mapSize / 2))
 			.add(L.point(-mapConfig.textureSize * 16, 0))
 			.add(L.point(-tileOffset[0], -tileOffset[1]).multiplyBy(mapConfig.tileSize[0]));
@@ -78,8 +81,8 @@ var IsometricRenderView = {
 		point.x /= 2*quarterBlockSize;
 		point.y /= quarterBlockSize;
 		// solve the row = ... col = ... equation system and you get this:
-		var x = 0.5 * (point.x - point.y - 2*y + 512);
-		var z = 0.5 * (point.x + point.y + 2*y - 512);
+		var x = 0.5 * (point.x - point.y - 2*y) + topBlock;
+		var z = 0.5 * (point.x + point.y + 2*y) - topBlock;
 		return [x, z, y];
 	}
 };
@@ -122,10 +125,10 @@ var SideRenderView = {
 
 		// (z-1) because in the tile renderer we also subtract blockHeight/2 from y
 		// leaflet x = x * blockWidth
-		// leaflet y = (z - 1) * blockHeight / 2 + (255 - y) * blockHeight / 2
+		// leaflet y = (z - 1) * blockHeight / 2 + (topBlock - y) * blockHeight / 2
 		var point = L.point(x, z - 1).scaleBy(L.point(blockWidth, blockHeight / 2))
 			.add(L.point(mapWidth / 2, mapHeight / 2))
-			.add(L.point(0, (255 - y) * blockHeight / 2))
+			.add(L.point(0, (topBlock - y) * blockHeight / 2))
 			.add(L.point(-tileOffset[0] * mapConfig.tileSize[0], -tileOffset[1] * mapConfig.tileSize[1]));
 		return lmap.unproject(point, mapConfig.maxZoom);
 	},
@@ -137,12 +140,12 @@ var SideRenderView = {
 		var blockHeight = mapConfig.tileSize[1] / (8.0 * tileWidth);
 
 		// x = leaflet x / blockWidth
-		// (z - 1) = (leaflet y - (255 - y) * blockHeight / 2) / (blockHeight / 2)
+		// (z - 1) = (leaflet y - (topBlock - y) * blockHeight / 2) / (blockHeight / 2)
 		var point = lmap.project(latLng, mapConfig.maxZoom)
 			.add(L.point(tileOffset[0] * mapConfig.tileSize[0], tileOffset[1] * mapConfig.tileSize[1]))
 			.add(L.point(-mapWidth / 2, -mapHeight / 2));
 		var x = point.x / blockWidth;
-		var z = (point.y - (255 - y) * blockHeight / 2) / (blockHeight / 2);
+		var z = (point.y - (topBlock - y) * blockHeight / 2) / (blockHeight / 2);
 		return [x, z + 1, y];
 	}
 };

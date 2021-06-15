@@ -110,8 +110,8 @@ void blockImageTest(RGBAImage& block, const RGBAImage& uv_mask) {
 	assert(block.getWidth() == uv_mask.getWidth());
 	assert(block.getHeight() == uv_mask.getHeight());
 	
-	for (size_t x = 0; x < block.getWidth(); x++) {
-		for (size_t y = 0; y < block.getHeight(); y++) {
+	for (int x = 0; x < block.getWidth(); x++) {
+		for (int y = 0; y < block.getHeight(); y++) {
 			uint32_t& pixel = block.pixel(x, y);
 			uint32_t uv_pixel = uv_mask.pixel(x, y);
 			if (rgba_alpha(uv_pixel) == 0) {
@@ -137,8 +137,8 @@ void blockImageMultiply(RGBAImage& block, const RGBAImage& uv_mask,
 	assert(block.getWidth() == uv_mask.getWidth());
 	assert(block.getHeight() == uv_mask.getHeight());
 	
-	for (size_t x = 0; x < block.getWidth(); x++) {
-		for (size_t y = 0; y < block.getHeight(); y++) {
+	for (int x = 0; x < block.getWidth(); x++) {
+		for (int y = 0; y < block.getHeight(); y++) {
 			uint32_t& pixel = block.pixel(x, y);
 			uint32_t uv_pixel = uv_mask.pixel(x, y);
 			if (rgba_alpha(uv_pixel) == 0) {
@@ -164,8 +164,8 @@ void blockImageMultiplyExcept(RGBAImage& block, const RGBAImage& uv_mask,
 	assert(block.getWidth() == uv_mask.getWidth());
 	assert(block.getHeight() == uv_mask.getHeight());
 	
-	for (size_t x = 0; x < block.getWidth(); x++) {
-		for (size_t y = 0; y < block.getHeight(); y++) {
+	for (int x = 0; x < block.getWidth(); x++) {
+		for (int y = 0; y < block.getHeight(); y++) {
 			uint32_t& pixel = block.pixel(x, y);
 			uint32_t uv_pixel = uv_mask.pixel(x, y);
 			if (rgba_alpha(uv_pixel) == 0) {
@@ -209,8 +209,8 @@ void blockImageMultiply(RGBAImage& block, const RGBAImage& uv_mask,
 	}
 
 	
-	size_t n = block.getWidth() * block.getHeight();
-	for (size_t i = 0; i < n; i++) {
+	int n = block.getWidth() * block.getHeight();
+	for (int i = 0; i < n; i++) {
 		uint32_t& pixel = block.data[i];
 		uint32_t uv_pixel = uv_mask.data[i];
 		if (rgba_alpha(uv_pixel) == 0) {
@@ -298,8 +298,8 @@ void blockImageMultiply(RGBAImage& block, const RGBAImage& uv_mask,
 }
 
 void blockImageMultiply(RGBAImage& block, uint8_t factor) {
-	size_t n = block.getWidth() * block.getHeight();
-	for (size_t i = 0; i < n; i++) {
+	int n = block.getWidth() * block.getHeight();
+	for (int i = 0; i < n; i++) {
 		block.data[i] = rgba_multiply_scalar(block.data[i], factor);
 	}
 }
@@ -308,25 +308,27 @@ void blockImageTint(RGBAImage& block, const RGBAImage& mask, uint32_t color) {
 	assert(block.getWidth() == mask.getWidth());
 	assert(block.getHeight() == mask.getHeight());
 
-	size_t n = block.getWidth() * block.getHeight();
-	for (size_t i = 0; i < n; i++) {
-		uint32_t& pixel = block.data[i];
+	int n = block.getWidth() * block.getHeight();
+	for (int i = 0; i < n; i++) {
 		uint32_t mask_pixel = mask.data[i];
-		/*
-		if (rgba_alpha(mask_pixel) == 0) {
-			continue;
-		}
-		*/
-		if ((mask_pixel & 0xff000000) > 0) {
-			pixel = rgba_multiply(mask_pixel, color);
+		if (rgba_alpha(mask_pixel)) {
+			uint32_t& pixel = block.data[i];
+			// The mask is not supposed to be transfered directly
+			// but to be blend in with block pixel
+			// This will avoid white pixels on edges of the mask
+			RGBAPixel colored_mask_pixel = rgba_multiply(mask_pixel, color);
+			blend(pixel, colored_mask_pixel);
 		}
 	}
 }
 
 void blockImageTint(RGBAImage& block, uint32_t color) {
-	size_t n = block.getWidth() * block.getHeight();
-	for (size_t i = 0; i < n; i++) {
-		block.data[i] = rgba_multiply(block.data[i], color);
+	int n = block.getWidth() * block.getHeight();
+	for (int i = 0; i < n; i++) {
+		uint32_t pixel = block.data[i];
+		if(rgba_alpha(pixel)) {
+			block.data[i] = rgba_multiply(pixel, color);
+		}
 	}
 }
 
@@ -398,9 +400,15 @@ void blockImageBlendTop(RGBAImage& block, const RGBAImage& uv_mask,
 		// compare uv-coords of block vs. waterlog pixels
 		// if the uv-coords are the same and both textures pointing up, don't show water here
 		
-		// because we assume that top texture contains only the up-texture, "!=" does the job
-		if (uv_pixel != top_uv_pixel) {
+		// use the Z value of each pixels to blend or not the top pixel
+		if (rgba_alpha(uv_pixel) < rgba_alpha(top_uv_pixel)) {
 			blend(pixel, top_pixel);
+		} else {
+			// The top pixel is behind the block one, so use the alpha of
+			// the destination pixel to blend the top pixel behind
+			RGBAPixel tmp_pix = pixel;
+			pixel = top_pixel;
+			blend(pixel, tmp_pix);
 		}
 	}
 }
@@ -469,15 +477,15 @@ bool blockImageIsTransparent(RGBAImage& block, const RGBAImage& uv_mask) {
 	assert(block.getWidth() == uv_mask.getWidth());
 	assert(block.getHeight() == uv_mask.getHeight());
 	
-	for (size_t x = 0; x < block.getWidth(); x++) {
-		for (size_t y = 0; y < block.getHeight(); y++) {
+	for (int x = 0; x < block.getWidth(); x++) {
+		for (int y = 0; y < block.getHeight(); y++) {
 			uint32_t& pixel = block.pixel(x, y);
 			uint32_t uv_pixel = uv_mask.pixel(x, y);
 			if (rgba_alpha(uv_pixel) == 0) {
 				continue;
 			}
 
-			if (rgba_alpha(pixel) != rgba_alpha(uv_pixel)) {
+			if (rgba_alpha(pixel) != 255) {
 				return true;
 			}
 		}
@@ -489,8 +497,8 @@ bool blockImageIsTransparent(RGBAImage& block, const RGBAImage& uv_mask) {
 std::array<bool, 3> blockImageGetSideMask(const RGBAImage& uv) {
 	std::array<bool, 3> side_mask = {false, false, false};
 	uint8_t mask_indices[3] = {FACE_LEFT_INDEX, FACE_RIGHT_INDEX, FACE_UP_INDEX};
-	for (size_t x = 0; x < uv.getWidth(); x++) {
-		for (size_t y = 0; y < uv.getHeight(); y++) {
+	for (int x = 0; x < uv.getWidth(); x++) {
+		for (int y = 0; y < uv.getHeight(); y++) {
 			uint32_t pixel = uv.pixel(x, y);
 			if (rgba_alpha(pixel) == 0) {
 				continue;
@@ -668,12 +676,14 @@ bool RenderedBlockImages::loadBlockImages(fs::path path, std::string view, int r
 		}
 		block.has_faulty_lighting = block_info.count("faulty_lighting");
 
+		block.can_partial = block_info.count("partial") ? block_info["partial"] == "true" : false;
+
 		block.shadow_edges = -1;
 		if (block_info.count("shadow_edges")) {
 			block.shadow_edges = util::as<int>(block_info["shadow_edges"]);
 		}
-
-		if (block_images.size() < id + 1) {
+		uint16_t id_next = id + 1;
+		if (block_images.size() < id_next) {
 			block_images.resize(id + 1, nullptr);
 		}
 		block_images[id] = b;
@@ -725,7 +735,8 @@ RGBAImage RenderedBlockImages::exportBlocks() const {
 }
 
 const BlockImage& RenderedBlockImages::getBlockImage(uint16_t id) const {
-	if (block_images.size() < id + 1) {
+	uint16_t id_next = id + 1;
+	if (block_images.size() < id_next) {
 		const mc::BlockState& block_state = block_registry.getBlockState(id);
 		
 		if (!block_state.hasProperty("waterlogged")) {
@@ -838,7 +849,7 @@ void RenderedBlockImages::runBenchmark() {
 	assert(block_images.size() > id && block_images[id] != nullptr);
 	const BlockImage& solid = *block_images[id];
 
-	uint32_t color = rgba(0x30, 0x59, 0xad, 0xff);
+	// uint32_t color = rgba(0x30, 0x59, 0xad, 0xff);
 
 	CornerValues left = {1.0, 0.8, 0.5, 1.0};
 	CornerValues right = {1.0, 0.6, 0.3, 0.8};

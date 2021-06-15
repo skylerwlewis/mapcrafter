@@ -137,7 +137,7 @@ BlockPos::BlockPos(int x, int z, int y)
 }
 
 int BlockPos::getRow() const {
-	return z - x + (CHUNK_HEIGHT*16 - y) * 4;
+	return z - x + (CHUNK_TOP*16 - y) * 4;
 }
 
 int BlockPos::getCol() const {
@@ -201,15 +201,11 @@ LocalBlockPos::LocalBlockPos(int x, int z, int y)
 }
 
 LocalBlockPos::LocalBlockPos(const BlockPos& pos)
-		: x(pos.x % 16), z(pos.z % 16), y(pos.y) {
-	if (x < 0)
-		x += 16;
-	if (z < 0)
-		z += 16;
+		: x(pos.x & 15), z(pos.z & 15), y(pos.y) {
 }
 
 int LocalBlockPos::getRow() const {
-	return z - x + (CHUNK_HEIGHT*16 - y) * 4;
+	return z - x + (CHUNK_TOP*16 - y) * 4;
 }
 
 int LocalBlockPos::getCol() const {

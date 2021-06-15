@@ -17,3 +17,7 @@ gmon.out
 # OSX
 .DS_Store
 docs/_build/
+
+/_wd_
+/.vscode
+/build

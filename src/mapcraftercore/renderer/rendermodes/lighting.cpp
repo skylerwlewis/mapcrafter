@@ -102,51 +102,9 @@ uint8_t LightingData::getLightLevel(bool day) const {
 	return std::max(block_light + 0, sky_light - 11);
 }
 
-namespace {
-
-bool isSpecialTransparent(uint16_t id) {
-	// not to be called anymore
-	assert(false);
-
-	// blocks which are transparent but don't have correct lighting data
-
-	// they need skylight from the block above
-	// (or the block above above, if the block above is also one of this blocks)
-
-	// they need an average blocklight from near blocks
-	return id == 44     // stone slabs
-			|| id == 53  // oak wood stairs
-			|| id == 64 || id == 71 // doors
-			|| id == 67  // cobble stairs
-			|| id == 108 // brick stairs
-			|| id == 109 // stone brick stairs
-			|| id == 114 // nether brick stairs
-			|| id == 126 // wooden slabs
-			|| id == 128 // sandstone stairs
-			|| id == 134 // spruce wood stairs
-			|| id == 135 // birch wood stairs
-			|| id == 136 // jungle wood stairs
-			|| id == 145 // anvil
-			|| id == 156 // quartz stairs
-			|| id == 163 // acacia wood stairs
-			|| id == 164 // dark oak wood stairs
-			|| id == 180 // red sandstone stairs
-			|| id == 182 // stone2 slabs
-			|| id == 203 // purpur stairs
-			|| id == 205 // purpur slabs
-			|| id == 208 // grass paths
-			;
-}
-
-}
-
 LightingData LightingData::estimate(const mc::Block& block,
 		RenderedBlockImages* block_images, mc::WorldCache* world, mc::Chunk* current_chunk) {
 	// estimate the light if this is a special block
-	/*
-	if (!isSpecialTransparent(block.id))
-		return LightingData(block.block_light, block.sky_light);
-	*/
 	if (!block_images->getBlockImage(block.id).has_faulty_lighting) {
 		return LightingData(block.block_light, block.sky_light);
 	}
@@ -160,10 +118,6 @@ LightingData LightingData::estimate(const mc::Block& block,
 		above = world->getBlock(block.pos + off, current_chunk,
 				mc::GET_ID | mc::GET_SKY_LIGHT);
 		const BlockImage& above_block = block_images->getBlockImage(above.id);
-		/*
-		if (isSpecialTransparent(above.id))
-			continue;
-		*/
 		if (above_block.has_faulty_lighting) {
 			continue;
 		}
@@ -184,14 +138,6 @@ LightingData LightingData::estimate(const mc::Block& block,
 				mc::Block other = world->getBlock(block.pos + mc::BlockPos(dx, dz, dy),
 						current_chunk, mc::GET_ID | mc::GET_BLOCK_LIGHT);
 				const BlockImage& other_block = block_images->getBlockImage(other.id);
-				/*
-				if ((other.id == 0
-						|| images->isBlockTransparent(other.id, other.data))
-						&& !isSpecialTransparent(other.id)) {
-					block_lights += other.block_light;
-					block_lights_count++;
-				}
-				*/
 				if ((other_block.is_air || other_block.is_transparent)
 						&& !other_block.has_faulty_lighting) {
 					block_lights += other.block_light;

@@ -129,7 +129,7 @@ int TileRenderer::getTileHeight() const {
 }
 
 void TileRenderer::renderBlocks(int x, int y, mc::BlockPos top, const mc::BlockPos& dir, std::set<TileImage>& tile_images) {
-	for (; top.y >= 0 ; top += dir) {
+	for (; top.y >= mc::CHUNK_LOW*16 ; top += dir) {
 		// get current chunk position
 		mc::ChunkPos current_chunk_pos(top);
 
@@ -158,9 +158,9 @@ void TileRenderer::renderBlocks(int x, int y, mc::BlockPos top, const mc::BlockP
 				|| full_water_like_ids.count(id)
 				|| block_images->getBlockImage(id).is_waterlogged;
 		};
-		auto is_ice = [this](uint16_t id) -> bool {
-			return block_images->getBlockImage(id).is_ice;
-		};
+		// auto is_ice = [this](uint16_t id) -> bool {
+		// 	return block_images->getBlockImage(id).is_ice;
+		// };
 
 		if (full_water_ids.count(id)) {
 			uint16_t up = getBlock(top + mc::DIR_TOP).id;
@@ -190,27 +190,6 @@ void TileRenderer::renderBlocks(int x, int y, mc::BlockPos top, const mc::BlockP
 			block_image = &block_images->getBlockImage(id);
 		}
 
-		/*
-		if (block_image->is_ice) {
-			uint16_t north = getBlock(top + mc::DIR_NORTH).id;
-			uint16_t south = getBlock(top + mc::DIR_SOUTH).id;
-			uint16_t east = getBlock(top + mc::DIR_EAST).id;
-			uint16_t west = getBlock(top + mc::DIR_WEST).id;
-			uint16_t up = getBlock(top + mc::DIR_TOP).id;
-			uint16_t down = getBlock(top + mc::DIR_BOTTOM).id;
-
-			uint8_t index = is_ice(north)
-								| (is_ice(south) << 1)
-								| (is_ice(east) << 2)
-								| (is_ice(west) << 3)
-								| (is_ice(up) << 4)
-								| (is_ice(down) << 5);
-			assert(index < 64);
-			id = partial_ice_ids[index];
-			block_image = &block_images->getBlockImage(id);
-		}
-		*/
-
 		// when we have a block that is waterlogged:
 		// remove upper water texture if it's not the block at the water surface
 		if (block_image->is_waterloggable && block_image->is_waterlogged) {
@@ -225,9 +204,56 @@ void TileRenderer::renderBlocks(int x, int y, mc::BlockPos top, const mc::BlockP
 			TileImage tile_image;
 			tile_image.x = x;
 			tile_image.y = y;
-			tile_image.image = block_image.image;
 			tile_image.pos = top;
 			tile_image.z_index = z_index;
+
+			// Check which side can be stripped, if any
+			// This is speeding up the rendering as it minimizes the amount of shadow and lighting that needs to be done
+			// 133 sec with stripping
+			// 144 without stripping
+			bool strip_up = false;
+			bool strip_left = false;
+			bool strip_right = false;
+			if(block_image.can_partial) {
+				strip_up = id == getBlock(top + mc::DIR_TOP).id;
+				strip_left = id == getBlock(top + mc::DIR_WEST).id;
+				strip_right = id == getBlock(top + mc::DIR_SOUTH).id;
+			} else if(!block_image.is_transparent) {
+				strip_up = block_images->getBlockImage((getBlock(top + mc::DIR_TOP).id)).is_transparent == false;
+				strip_left = block_images->getBlockImage((getBlock(top + mc::DIR_WEST).id)).is_transparent == false;
+				strip_right = block_images->getBlockImage((getBlock(top + mc::DIR_SOUTH).id)).is_transparent == false;
+			}
+
+			tile_image.image.setSize(block_image.image.width,block_image.image.height);
+
+			if(strip_up || strip_left || strip_right){
+				const RGBAImage& uv = block_image.uv_image;
+				for(int i=0; i<tile_image.image.width*tile_image.image.height; i++)
+				{
+					RGBAPixel puv = uv.data[i];
+					RGBAPixel p = block_image.image.data[i];
+					switch(rgba_blue(puv)){
+						case FACE_UP_INDEX:
+							if(strip_up) {
+								p = 0;
+							}
+							break;
+						case FACE_LEFT_INDEX:
+							if(strip_left) {
+								p = 0;
+							}
+							break;
+						case FACE_RIGHT_INDEX:
+							if(strip_right) {
+								p = 0;
+							}
+							break;
+					}
+					tile_image.image.data[i] = p;
+				}
+			} else {
+				std::copy(block_image.image.data.begin(), block_image.image.data.end(), tile_image.image.data.begin());
+			}
 
 			if (block_image.is_biome) {
 				block_images->prepareBiomeBlockImage(tile_image.image, block_image, getBiomeColor(top, block_image, current_chunk));
@@ -292,13 +318,11 @@ uint32_t TileRenderer::getBiomeColor(const mc::BlockPos& pos, const BlockImage& 
 	float f = ((2*radius+1)*(2*radius+1));
 	float r = 0.0, g = 0.0, b = 0.0;
 
-	int n = 0;
 	for (int dx = -radius; dx <= radius; dx++) {
 		for (int dz = -radius; dz <= radius; dz++) {
 			mc::BlockPos other = pos + mc::BlockPos(dx, dz, 0);
 			mc::ChunkPos chunk_pos(other);
 			
-			const BlockImage* other_block;
 			uint16_t biome_id;
 			mc::LocalBlockPos local(other);
 			if (chunk_pos != chunk->getPos()) {

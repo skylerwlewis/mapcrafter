@@ -66,6 +66,10 @@ void BaseRenderMode::draw(RGBAImage& image, const mc::BlockPos& pos,
 		uint16_t id, uint16_t data) {
 }
 
+void BaseRenderMode::draw(RGBAImage& image, const BlockImage& block_image,
+		const mc::BlockPos& pos, uint16_t id) {
+}
+
 mc::Block BaseRenderMode::getBlock(const mc::BlockPos& pos, int get) {
 	return world->getBlock(pos, *current_chunk, get);
 }

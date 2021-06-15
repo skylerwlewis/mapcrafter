@@ -265,8 +265,11 @@ LogSyslogSink::~LogSyslogSink() {
 }
 
 void LogSyslogSink::sink(const LogMessage& message) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
 	syslog(LogLevelHelper::levelToSyslog(message.level),
 			util::replaceAll(message.message, "%", "%%").c_str());
+#pragma GCC diagnostic pop
 }
 
 #endif
